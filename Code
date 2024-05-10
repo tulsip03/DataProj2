@@ -1,0 +1,75 @@
+import sqlite3
+import requests
+import pandas as pd
+import time
+from datetime import datetime
+import mysql
+
+database = 'proj_data.db'
+api_url = 'https://4feaquhyai.execute-api.us-east-1.amazonaws.com/api/pi'
+start = datetime.now()
+conn = sqlite3.connect(database)
+c = conn.cursor()
+c.execute('DROP TABLE IF EXISTS Proj_Data')
+conn.commit()
+
+# retrieving data from api
+def fetch_data_from_api():
+    # Replace
+    response = requests.get('https://4feaquhyai.execute-api.us-east-1.amazonaws.com/api/pi')
+
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print("Failed to fetch data from API, Status code:", response.status_code)
+        return None
+
+def insert_data_into_mysql(data):
+    try:
+        connection = mysql.connector.connect( host='localhost', passwd = 'cjw6jz', database = 'proj_data', username = 'cjw6jz')
+        cursor = connection.cursor()
+
+        query = "INSERT INTO DataProj2 (factor, pi, time) VALUES (%s, %s,%s)"
+        values = (data['factor'], data['pi'], data['time'])
+
+        cursor.execute(query, values)
+        connection.commit()
+        print("Data inserted into MySQL successfully.")
+    except Exception as e:
+        print("Error inserting data into MySQL:", e)
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+# set retrieval for every minute for an hour
+def main():
+    duration = 60 * 60
+
+    # Define the start time
+    start_time = time.time()
+
+    while time.time() - start_time < duration:
+        data = fetch_data_from_api()
+
+        if data:
+            print("Data retrieved:", data)
+        else:
+            print("Failed to retrieve data.")
+
+        time.sleep(60)
+
+    print("Stopping data fetching.")
+
+
+if __name__ == "__main__":
+    main()
+
+#configure data
+conn = sqlite3.connect(database)
+df = pd.read_sql_query('SELECT * FROM Proj_Data', conn)
+conn.close()
+print(df.describe())
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+df.set_index('timestamp', inplace=True)
+
